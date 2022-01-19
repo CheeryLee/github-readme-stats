@@ -1,6 +1,6 @@
 const { logger, CustomError } = require("../common/utils");
 
-const retryer = async (fetcher, variables, retries = 0) => {
+const retryer = async (fetcher, variables, retries = 0, custom_vars = null) => {
   if (retries > 7) {
     throw new CustomError("Maximum retries exceeded", CustomError.MAX_RETRY);
   }
@@ -10,6 +10,7 @@ const retryer = async (fetcher, variables, retries = 0) => {
       variables,
       process.env[`PAT_${retries + 1}`],
       retries,
+      custom_vars
     );
 
     // prettier-ignore

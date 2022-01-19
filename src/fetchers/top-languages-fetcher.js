@@ -2,14 +2,16 @@ const { request, logger } = require("../common/utils");
 const retryer = require("../common/retryer");
 require("dotenv").config();
 
-const fetcher = (variables, token) => {
+const fetcher = (variables, token, retries, custom_vars) => {
+  let privacy = custom_vars.public_repos ? 'PUBLIC' : 'PRIVATE';
+
   return request(
     {
       query: `
       query userInfo($login: String!) {
         user(login: $login) {
           # fetch only owner repos & not forks
-          repositories(ownerAffiliations: OWNER, isFork: false, first: 100) {
+          repositories(ownerAffiliations: OWNER, isFork: false, first: 100, privacy: ${privacy}) {
             nodes {
               name
               languages(first: 10, orderBy: {field: SIZE, direction: DESC}) {
@@ -37,7 +39,8 @@ const fetcher = (variables, token) => {
 async function fetchTopLanguages(username, exclude_repo = []) {
   if (!username) throw Error("Invalid username");
 
-  const res = await retryer(fetcher, { login: username });
+  //const public_res = await retryer(fetcher, { login: username }, { public_repos: true });
+  const res = await retryer(fetcher, { login: username }, { public_repos: false });
 
   if (res.data.errors) {
     logger.error(res.data.errors);
