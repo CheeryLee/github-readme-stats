@@ -2,13 +2,13 @@ const { request, logger } = require("../common/utils");
 const retryer = require("../common/retryer");
 require("dotenv").config();
 
-const fetcher = (variables, token) => {
+const private_fetcher = (variables, token) => {
   return request(
     {
       query: `
       query userInfo($login: String!) {
         user(login: $login) {
-          repositoriesContributedTo(first: 50, privacy: $privacy, includeUserRepositories: true, orderBy: {field: UPDATED_AT, direction: DESC}, contributionTypes: [COMMIT, PULL_REQUEST]) {
+          repositoriesContributedTo(first: 50, privacy: PRIVATE, includeUserRepositories: true, orderBy: {field: UPDATED_AT, direction: DESC}, contributionTypes: [COMMIT, PULL_REQUEST]) {
             nodes {
               name
               languages(first: 10, orderBy: {field: SIZE, direction: DESC}) {
@@ -47,11 +47,56 @@ const fetcher = (variables, token) => {
   );
 };
 
+const public_fetcher = (variables, token) => {
+  return request(
+    {
+      query: `
+      query userInfo($login: String!) {
+        user(login: $login) {
+          repositoriesContributedTo(first: 50, privacy: PUBLIC, includeUserRepositories: true, orderBy: {field: UPDATED_AT, direction: DESC}, contributionTypes: [COMMIT, PULL_REQUEST]) {
+            nodes {
+              name
+              languages(first: 10, orderBy: {field: SIZE, direction: DESC}) {
+                edges {
+                  size
+                  node {
+                    color
+                    name
+                  }
+                }
+              }
+            }
+          }
+          repositories(affiliations: [OWNER, COLLABORATOR], isFork: false, first: 10, privacy: PUBLIC, orderBy: {field: UPDATED_AT, direction: DESC}) {
+            nodes {
+              name
+              languages(first: 10, orderBy: {field: SIZE, direction: DESC}) {
+                edges {
+                  node {
+                    name
+                    color
+                  }
+                  size
+                }
+              }
+            }
+          }
+        }
+      }
+      `,
+      variables,
+    },
+    {
+      Authorization: `token ${token}`,
+    },
+  );
+};
+
 async function fetchTopLanguages(username, exclude_repo = []) {
   if (!username) throw Error("Invalid username");
 
-  const privateRes = await retryer(fetcher, { login: username, privacy: 'PRIVATE' });
-  const publicRes = await retryer(fetcher, { login: username, privacy: 'PUBLIC' });
+  const privateRes = await retryer(private_fetcher, { login: username });
+  const publicRes = await retryer(public_fetcher, { login: username });
 
   let privateTopLangs = parseTopLanguages(privateRes, exclude_repo);
   let publicTopLangs = parseTopLanguages(publicRes, exclude_repo);
