@@ -8,8 +8,7 @@ const fetcher = (variables, token) => {
       query: `
       query userInfo($login: String!) {
         user(login: $login) {
-          # fetch only owner repos & not forks
-          repositories(ownerAffiliations: [ OWNER, ORGANIZATION_MEMBER ], isFork: false, first: 100, privacy: PRIVATE) {
+          repositoriesContributedTo(first: 50, privacy: $privacy, includeUserRepositories: true, orderBy: {field: UPDATED_AT, direction: DESC}, contributionTypes: [COMMIT, PULL_REQUEST]) {
             nodes {
               name
               languages(first: 10, orderBy: {field: SIZE, direction: DESC}) {
@@ -19,6 +18,20 @@ const fetcher = (variables, token) => {
                     color
                     name
                   }
+                }
+              }
+            }
+          }
+          repositories(affiliations: [OWNER, COLLABORATOR], isFork: false, first: 10, privacy: PRIVATE, orderBy: {field: UPDATED_AT, direction: DESC}) {
+            nodes {
+              name
+              languages(first: 10, orderBy: {field: SIZE, direction: DESC}) {
+                edges {
+                  node {
+                    name
+                    color
+                  }
+                  size
                 }
               }
             }
@@ -37,14 +50,37 @@ const fetcher = (variables, token) => {
 async function fetchTopLanguages(username, exclude_repo = []) {
   if (!username) throw Error("Invalid username");
 
-  const res = await retryer(fetcher, { login: username });
+  const privateRes = await retryer(fetcher, { login: username, privacy: 'PRIVATE' });
+  const publicRes = await retryer(fetcher, { login: username, privacy: 'PUBLIC' });
 
+  let privateTopLangs = parseTopLanguages(privateRes, exclude_repo);
+  let publicTopLangs = parseTopLanguages(publicRes, exclude_repo);
+
+  for (var private of privateTopLangs) {
+    for (var public of publicTopLangs) {
+      if (private == public)
+        privateTopLangs[private].size += publicTopLangs[private].size;
+    }
+  }
+
+  for (var private of privateTopLangs) {
+    for (var public of publicTopLangs) {
+      if (private in public == false)
+        privateTopLangs[private] = publicTopLangs[private];
+    }
+  }
+
+  return privateTopLangs;
+}
+
+function parseTopLanguages(res, exclude_repo = []) {
   if (res.data.errors) {
     logger.error(res.data.errors);
     throw Error(res.data.errors[0].message || "Could not fetch user");
   }
 
   let repoNodes = res.data.data.user.repositories.nodes;
+  let contributedRepoNodes = res.data.data.user.repositoriesContributedTo.nodes;
   let repoToHide = {};
 
   // populate repoToHide map for quick lookup
@@ -61,6 +97,17 @@ async function fetchTopLanguages(username, exclude_repo = []) {
     .filter((name) => {
       return !repoToHide[name.name];
     });
+
+  contributedRepoNodes = contributedRepoNodes
+    .filter((name) => {
+      return !repoToHide[name.name];
+    })
+    .filter((name) => {
+      for (var n of repoNodes)
+        return n.name != name.name;
+    });
+
+  repoNodes.push(...contributedRepoNodes);
 
   repoNodes = repoNodes
     .filter((node) => {
