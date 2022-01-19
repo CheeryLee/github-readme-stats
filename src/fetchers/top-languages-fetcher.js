@@ -101,15 +101,15 @@ async function fetchTopLanguages(username, exclude_repo = []) {
   let privateTopLangs = parseTopLanguages(privateRes, exclude_repo);
   let publicTopLangs = parseTopLanguages(publicRes, exclude_repo);
 
-  for (var private of privateTopLangs) {
-    for (var public of publicTopLangs) {
+  for (var private in privateTopLangs) {
+    for (var public in publicTopLangs) {
       if (private == public)
         privateTopLangs[private].size += publicTopLangs[private].size;
     }
   }
 
-  for (var private of privateTopLangs) {
-    for (var public of publicTopLangs) {
+  for (var private in privateTopLangs) {
+    for (var public in publicTopLangs) {
       if (private in public == false)
         privateTopLangs[private] = publicTopLangs[private];
     }
